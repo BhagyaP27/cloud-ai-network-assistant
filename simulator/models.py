@@ -10,4 +10,4 @@ class TelemetryEvent(BaseModel):
     cpu_pct: float = Field(ge=0, le=100)
     mem_pct: float = Field(ge=0, le=100)
     timestamp: float = Field(default_factory=lambda: int(time.time()))
-    status: Literal["OK", "WARN", "CRIT"] = "OK"
+    status: Literal["OK", "WARN", "CRITICAL"] = "OK"

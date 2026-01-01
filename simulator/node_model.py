@@ -24,7 +24,7 @@ class NodeModel:
         # try 60 second cycle so i can visually see paterns quickly
         return 0.5 + 0.5 * math.sin(2 * math.pi * (t % 60) / 60)
     
-    def generate(self,t: float) -> TelemetryEvent:
+    def generate(self,t: float, effects:dict) -> TelemetryEvent:
         """
         Generate one telemetry event for this node at time t.
         
@@ -55,6 +55,28 @@ class NodeModel:
         # Loss increases noticeably when load is high (congestion threshold ~0.8)
         packet_loss = self.loss_floor + max(0.0, (load - 0.8)) * 0.03 + abs(self.rng.normalvariate(0, 0.001))
         packet_loss = max(0.0, min(1.0, packet_loss))
+
+
+        # apply the incident effects if active
+        if "cpu_spike" in effects:
+            mult = effects["cpu_spike"]
+            cpu = min(100.0, cpu * mult)
+            throughput = max(0.0, throughput * (1.0/mult))
+        if "latency_spike" in effects:
+            mult = effects["latency_spike"]
+            latency = latency * mult
+            packet_loss = min(1.0, packet_loss * (0.8 + 0.6 * mult))
+
+        if "packet_loss_burst" in effects:
+            sev = effects["packet_loss_burst"]
+            packet_loss = min(1.0, packet_loss + 0.05 * sev)
+            latency = latency * (1.0 + 0.3 * sev)
+
+        if "throughput_drop" in effects:
+            mult = effects["throughput_drop"]
+            throughput = throughput * (1.0 / mult)
+            latency = latency * (1.0 + 0.2 * mult)
+
 
         status = "OK"
         if packet_loss > 0.03 or latency > 200 or cpu > 90:

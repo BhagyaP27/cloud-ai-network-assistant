@@ -1,0 +1,34 @@
+emit_hz: 1.0
+seed: 7
+
+
+nodes:
+  - router-1
+  - router-2
+  - router-3
+  - router-4
+  - router-5
+
+sink:
+  type: stdout  #stdout, file, http
+  path: telemerty.jsonl
+  url: "http://localhost:8000/ingest"
+
+incidents:
+  - type: latency_spike
+    node: router-3
+    start_after_s: 5
+    duration_s: 12
+    severity: 4.0
+
+  - type: packet_loss_burst
+    node: router-2
+    start_after_s: 10
+    duration_s: 8
+    severity: 2.0
+
+  - type: cpu_spike
+    node: null
+    start_after_s: 20
+    duration_s: 10
+    severity: 1.8

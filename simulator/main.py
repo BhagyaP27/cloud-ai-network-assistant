@@ -3,6 +3,11 @@ import random
 import time
 from collections import defaultdict
 
+from simulator.sinks.stdout_sink import StdoutSink
+from simulator.sinks.file_sink import FileSink
+# from simulator.sinks.http_sink import HttpSink
+
+
 from simulator.node_model import NodeModel
 from simulator.incident_model import build_incidents
 
@@ -34,6 +39,7 @@ async def main():
     rng = random.Random(SEED)
     models = [NodeModel(name, rng) for name in NODES]
     incidents = build_incidents(INCIDENTS_CONFIG)
+    sink = FileSink("telemetry_events.jsonl")
 
     interval = 1.0 / EMIT_HZ
     while True:
@@ -41,7 +47,7 @@ async def main():
         for m in models:
             effects = effects_for_node(m.name, incidents, now)
             event = m.generate(now, effects)
-            print(event.model_dump_json())
+            sink.emit(event)
         await asyncio.sleep(interval)
 
 if __name__ == "__main__":

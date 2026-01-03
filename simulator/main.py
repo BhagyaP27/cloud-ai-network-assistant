@@ -1,7 +1,12 @@
 import asyncio
 import random
 import time
+import argparse
 from collections import defaultdict
+
+from simulator.node_model import NodeModel
+from simulator.incident_model import build_incidents
+from simulator.settings import load_config, SimulatorConfig
 
 from simulator.sinks.stdout_sink import StdoutSink
 from simulator.sinks.file_sink import FileSink
@@ -11,41 +16,74 @@ from simulator.sinks.file_sink import FileSink
 from simulator.node_model import NodeModel
 from simulator.incident_model import build_incidents
 
-#multiple nodes + continuous emmission
-NODES = ["router-1","router-2","router-3","router-4","router-5"]
-EMIT_HZ = 1.0 # events per second
-SEED = 7 # makes random values predictable for testing
+def make_sink(cfg: SimulatorConfig):
+    if cfg.sink_type == "stdout":
+        return StdoutSink()
+    elif cfg.sink_type == "file":
+        return FileSink(cfg.file_path)
+    if cfg.sink_type == "http":
+        #return HttpSink(cfg.http_endpoint)
+        #for now throw error until implemented
+        raise NotImplementedError("HTTP sink not implemented yet")
+    raise ValueError(f"Unknown sink type: {cfg.sink_type}")
 
-INCIDENTS_CONFIG = [
-    {"type": "latency_spike", "node": "router-3", "start_after_s": 5,  "duration_s": 12, "severity": 4.0},
-    {"type": "packet_loss_burst", "node": "router-2", "start_after_s": 10, "duration_s": 8, "severity": 2.0},
-    {"type": "cpu_spike", "node": None, "start_after_s": 20, "duration_s": 10, "severity": 1.8},
-]
-
-def effects_for_node(node: str, incidents, now: float) -> dict:
-    effects = defaultdict(float)
+def effect_for_node(node:str, incidents, now:float) -> dict:
+    effects = defaultdict(list)
     for inc in incidents:
         if not inc.active(now):
             continue
         if inc.node is not None and inc.node != node:
             continue
-        # if multiple incidents of same type overlap, keep the strongest
         effects[inc.type] = max(effects[inc.type], inc.severity)
     return dict(effects)
 
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--config", default="configs/simulator.dev.yaml")
+    p.add_argument("--emit-hz", type=float)
+    p.add_argument("--seed", type=int)
+    p.add_argument("--sink", choices=["stdout", "file", "http"])
+    p.add_argument("--file-path")
+    p.add_argument("--http-url")
+    p.add_argument("--nodes", help="Comma-separated node names, e.g. router-1,router-2")
+    return p.parse_args()
+
+def apply_overrides(cfg: SimulatorConfig, args)-> SimulatorConfig:
+    #muatate safely via model_copy/update pattern
+    data = cfg.model_dump()
+
+    if args.emit_hz is not None:
+        data["emit_hz"] = args.emit_hz
+    if args.seed is not None:
+        data["seed"] = args.seed
+    if args.nodes is not None:
+        data["nodes"] =  [n.strip() for n in args.nodes.split(",") if n.strip()]
+    if args.sink is not None:
+        data["sink"]["type"] = args.sink
+    if args.file_path is not None:
+        data["sink"]["file_path"] = args.file_path
+    if args.http_url is not None:
+        data["sink"]["url"] = args.http_url
+    
+    return SimulatorConfig.model_validate(data)
 
 
 async def main():
-    rng = random.Random(SEED)
-    models = [NodeModel(name, rng) for name in NODES]
-    incidents = build_incidents(INCIDENTS_CONFIG)
-    sink = FileSink("telemetry_events.jsonl")
+    args = parse_args()
+    cfg = load_config(args.config)
+    cfg = apply_overrides(cfg, args)
 
-    interval = 1.0 / EMIT_HZ
+    rng = random.Random(cfg.seed)
+    models = [NodeModel(name, rng) for name in cfg.nodes]
+
+    incidents = build_incidents([i.model_dump() for i in cfg.incidents], rng)
+    sink = make_sink(cfg.sink)
+
+    interval = 1.0 / cfg.emit_hz
     while True:
         now = time.time()
         for m in models:
-            effects = effects_for_node(m.name, incidents, now)
+            effects = effect_for_node(m.name, incidents, now)
             event = m.generate(now, effects)
             sink.emit(event)
         await asyncio.sleep(interval)

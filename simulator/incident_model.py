@@ -13,7 +13,7 @@ class Incident:
     def active(self, now:float) -> bool:
         return self.start_ts <= now <= self.end_ts
 
-def build_incidents(incident_dicts: list[dict]) -> list[Incident]:
+def build_incidents(incident_dicts: list[dict], base_time:float | None = None) -> list[Incident]:
     """
     Docstring for build_incidents
     
@@ -22,10 +22,11 @@ def build_incidents(incident_dicts: list[dict]) -> list[Incident]:
     :return: Description
     :rtype: list[Incident]
     """
-    now = time.time()
+    base = time.time() if base_time is None else base_time
+
     incidents: list[Incident] = []
     for d in incident_dicts:
-        start = now + int(d["start_after_s"])
+        start = base + int(d["start_after_s"])
         end = start + int(d["duration_s"])
         incidents.append(
             Incident(

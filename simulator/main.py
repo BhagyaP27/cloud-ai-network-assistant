@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from simulator.node_model import NodeModel
 from simulator.incident_model import build_incidents
-from simulator.settings import load_config, SimulatorConfig
+from simulator.settings import load_config, SimulatorConfig, SinkConfig, IncidentConfig
 
 from simulator.sinks.stdout_sink import StdoutSink
 from simulator.sinks.file_sink import FileSink
@@ -16,16 +16,18 @@ from simulator.sinks.file_sink import FileSink
 from simulator.node_model import NodeModel
 from simulator.incident_model import build_incidents
 
-def make_sink(cfg: SimulatorConfig):
-    if cfg.sink_type == "stdout":
+def make_sink(sink_cfg: SinkConfig):
+    if sink_cfg.type == "stdout":
         return StdoutSink()
-    elif cfg.sink_type == "file":
-        return FileSink(cfg.file_path)
-    if cfg.sink_type == "http":
-        #return HttpSink(cfg.http_endpoint)
-        #for now throw error until implemented
+
+    if sink_cfg.type == "file":
+        return FileSink(sink_cfg.path)
+
+    if sink_cfg.type == "http":
+        # return HttpSink(sink_cfg.url)
         raise NotImplementedError("HTTP sink not implemented yet")
-    raise ValueError(f"Unknown sink type: {cfg.sink_type}")
+
+    raise ValueError(f"Unknown sink type: {sink_cfg.type}")
 
 def effect_for_node(node:str, incidents, now:float) -> dict:
     effects = defaultdict(list)
@@ -76,7 +78,7 @@ async def main():
     rng = random.Random(cfg.seed)
     models = [NodeModel(name, rng) for name in cfg.nodes]
 
-    incidents = build_incidents([i.model_dump() for i in cfg.incidents], rng)
+    incidents = build_incidents([i.model_dump() for i in cfg.incidents])
     sink = make_sink(cfg.sink)
 
     interval = 1.0 / cfg.emit_hz

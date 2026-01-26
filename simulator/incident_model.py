@@ -28,6 +28,12 @@ def build_incidents(incident_dicts: list[dict], base_time:float | None = None) -
     for d in incident_dicts:
         start = base + int(d["start_after_s"])
         end = start + int(d["duration_s"])
+
+        sev = d.get("severity", 1.0)
+        #robustness: if someone wrote severity as a list in YAML, take the firsrt
+        if isinstance(sev, list):
+            sev = sev[0] if sev else 1.0
+        
         incidents.append(
             Incident(
                 type=d["type"],

@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist SQLite DB file on your host
+      - ./telemetry.db:/app/telemetry.db
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  simulator:
+    build:
+      context: .
+      dockerfile: docker/simulator.Dockerfile
+    depends_on:
+      - backend
+    volumes:
+      - ./:/app
+    command: >
+      python -m simulator.main
+      --config configs/simulator.dev.yaml
+      --sink http
+      --http-url http://backend:8000/ingest

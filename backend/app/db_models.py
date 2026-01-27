@@ -4,7 +4,7 @@ from .db import Base
 class TelemetryEventRow(Base):
     __tablename__ = "telemetry_events"
 
-    id = Column(Integer, Primary_key=True,index=True)
+    id = Column(Integer, primary_key=True,index=True)
     node = Column(String, index=True, nullable=False)
 
     latency_ms = Column(Float, nullable=False)

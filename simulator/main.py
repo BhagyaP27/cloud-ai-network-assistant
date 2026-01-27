@@ -3,6 +3,7 @@ import random
 import time
 import argparse
 from collections import defaultdict
+from typing import Any
 
 from simulator.node_model import NodeModel
 from simulator.incident_model import build_incidents
@@ -30,13 +31,18 @@ def make_sink(sink_cfg: SinkConfig):
     raise ValueError(f"Unknown sink type: {sink_cfg.type}")
 
 def effect_for_node(node:str, incidents, now:float) -> dict:
-    effects = defaultdict(list)
+    effects = defaultdict(float)
     for inc in incidents:
         if not inc.active(now):
             continue
         if inc.node is not None and inc.node != node:
             continue
-        effects[inc.type] = max(effects[inc.type], inc.severity)
+        sev: Any = inc.severity
+        #Normalize severity to a float no matter what shape it came in
+        if isinstance(sev, list):
+            sev = sev[0] if sev else 1.0
+        sev = float(sev)
+        effects[inc.type] = max(float(effects[inc.type]), sev)
     return dict(effects)
 
 def parse_args():

@@ -12,7 +12,7 @@ nodes:
 sink:
   type: http
   path: telemerty.jsonl
-  url: "http://127.0.0.1:8000/ingest"
+  url: "http://127.0.0.1:8000/ingest" #url for docker should be http://host.docker.internal:8000/ingest
 
 incidents:
   - type: latency_spike

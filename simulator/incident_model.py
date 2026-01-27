@@ -40,7 +40,7 @@ def build_incidents(incident_dicts: list[dict], base_time:float | None = None) -
                 node=d.get("node"),
                 start_ts=start,
                 end_ts=end,
-                severity=float(d.get("severity", 1.0)),
+                severity=float(sev),
             )
         )
     return incidents

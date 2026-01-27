@@ -10,7 +10,7 @@ from simulator.settings import load_config, SimulatorConfig, SinkConfig, Inciden
 
 from simulator.sinks.stdout_sink import StdoutSink
 from simulator.sinks.file_sink import FileSink
-# from simulator.sinks.http_sink import HttpSink
+from simulator.sinks.http_sink import HttpSink
 
 
 from simulator.node_model import NodeModel
@@ -24,7 +24,7 @@ def make_sink(sink_cfg: SinkConfig):
         return FileSink(sink_cfg.path)
 
     if sink_cfg.type == "http":
-        # return HttpSink(sink_cfg.url)
+        return HttpSink(sink_cfg.url)
         raise NotImplementedError("HTTP sink not implemented yet")
 
     raise ValueError(f"Unknown sink type: {sink_cfg.type}")

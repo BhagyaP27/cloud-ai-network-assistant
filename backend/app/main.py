@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException, Query, Depends
 from typing import Optional, List
 from sqlalchemy.orm import Session
+import time
 
 from .models import TelemetryEvent
 from .db import SessionLocal, init_db
 from . import crud
+from .stats_models import NodeStats
 
 app = FastAPI(title="Telemetry Ingestion API", version="0.2.0")
 
@@ -60,3 +62,23 @@ def events(
         limit=limit,
         offset=offset,
     )
+
+@app.get("/stats", response_model=list[NodeStats])
+def stats(
+    node: Optional[list[str]] = Query(default=None, description="Repeat param: ?node=r1&node=r2"),
+    start_ts: Optional[int] = Query(default=None),
+    end_ts: Optional[int] = Query(default=None),
+    window_s: int = Query(default=900, ge=60, le=86400, description="Default window if start/end not provided"),
+    db: Session = Depends(get_db),
+):
+    # Default to last window_s seconds if no explicit range passed
+    now = int(time.time())
+    if start_ts is None and end_ts is None:
+        end_ts = now
+        start_ts = now - window_s
+    elif start_ts is None and end_ts is not None:
+        start_ts = end_ts - window_s
+    elif start_ts is not None and end_ts is None:
+        end_ts = start_ts + window_s
+
+    return crud.get_node_stats(db, nodes=node, start_ts=start_ts, end_ts=end_ts)

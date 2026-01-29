@@ -42,3 +42,21 @@ def history(
     db: Session = Depends(get_db),
 ):
     return crud.get_history(db, node=node, limit=limit)
+
+@app.get("/events", response_model=List[TelemetryEvent])
+def events(
+    node: Optional[List[str]] = Query(default=None, description="Repeat param: ?node=r1&node=r2"),
+    start_ts: Optional[int] = Query(default=None, description="Unix seconds, inclusive"),
+    end_ts: Optional[int] = Query(default=None, description="Unix seconds, inclusive"),
+    limit: int = Query(default=200, ge=1, le=2000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return crud.query_events(
+        db,
+        nodes=node,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        limit=limit,
+        offset=offset,
+    )

@@ -3,9 +3,11 @@ from sqlalchemy import select, desc
 from sqlalchemy import and_
 from sqlalchemy import func
 from typing import Optional, List
+import time
 
 from simulator.models import TelemetryEvent
-from .db_models import TelemetryEventRow
+from .db_models import TelemetryEventRow, AlertRow
+from .alert_models import AlertOut
 from .stats_models import NodeStats
 
 def insert_event(db: Session, event: TelemetryEvent) -> TelemetryEventRow:
@@ -104,3 +106,77 @@ def get_node_stats(
         m = r._mapping  # SQLAlchemy row mapping
         out.append(NodeStats(**dict(m)))
     return out
+
+def _now_ts() -> int:
+    return int(time.time())
+
+def create_alert(
+    db: Session,
+    node: str,
+    rule_id: str,
+    severity: str,
+    message: str,
+) -> AlertRow:
+    row = AlertRow(
+        node=node,
+        rule_id=rule_id,
+        severity=severity,
+        message=message,
+        created_ts=_now_ts(),
+        resolved_ts=None,
+        is_active=True,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def get_active_alert(db: Session, node: str, rule_id: str) -> Optional[AlertRow]:
+    stmt = (
+        select(AlertRow)
+        .where(AlertRow.node == node, AlertRow.rule_id == rule_id, AlertRow.is_active == True)  # noqa: E712
+        .order_by(desc(AlertRow.created_ts), desc(AlertRow.id))
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()
+
+def resolve_alert(db: Session, alert_id: int) -> Optional[AlertRow]:
+    row = db.get(AlertRow, alert_id)
+    if not row:
+        return None
+    row.is_active = False
+    row.resolved_ts = _now_ts()
+    db.commit()
+    db.refresh(row)
+    return row
+
+def list_alerts(
+    db: Session,
+    node: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[AlertOut]:
+    stmt = select(AlertRow)
+
+    if node:
+        stmt = stmt.where(AlertRow.node == node)
+    if is_active is not None:
+        stmt = stmt.where(AlertRow.is_active == is_active)
+
+    stmt = stmt.order_by(desc(AlertRow.created_ts), desc(AlertRow.id)).limit(limit).offset(offset)
+    rows = db.execute(stmt).scalars().all()
+
+    return [
+        AlertOut(
+            id=r.id,
+            node=r.node,
+            rule_id=r.rule_id,
+            severity=r.severity,  # type: ignore
+            message=r.message,
+            created_ts=r.created_ts,
+            resolved_ts=r.resolved_ts,
+            is_active=r.is_active,
+        )
+        for r in rows
+    ]

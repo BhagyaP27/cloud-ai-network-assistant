@@ -58,6 +58,12 @@ def ingest(event: TelemetryEvent, db: Session = Depends(get_db)):
             severity=f["severity"],
                 message=f["message"],
             )
+    return {
+        "accepted": True,
+        "node": event.node,
+        "timestamp": event.timestamp,
+        "alerts_created": len(findings),
+    }
 
 
 @app.get("/latest", response_model=TelemetryEvent)

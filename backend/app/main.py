@@ -9,7 +9,15 @@ from . import crud
 from .stats_models import NodeStats
 from .db_models import AlertRow
 from .alert_models import AlertOut
+from .detector import OnlineAnomalyDetector
 
+detector = OnlineAnomalyDetector( # global instance for simplicity; in prod consider sharding by node or metric
+    alpha=0.05,
+    z_thresh=3.0,
+    warmup_n=30,
+    consecutive_required=3,
+
+) 
 app = FastAPI(title="Telemetry Ingestion API", version="0.2.0")
 
 @app.on_event("startup")
@@ -31,26 +39,25 @@ def health():
 def ingest(event: TelemetryEvent, db: Session = Depends(get_db)):
     crud.insert_event(db, event)
 
-    # --- Phase 2 rule-based alerting (simple thresholds) ---
-    # Cooldown so we don't spam duplicate alerts
+    findings = detector.update_and_check(event)
+
+    # cooldown per node+rule
     cooldown_s = 30
 
-    def maybe_alert(rule_id: str, severity: str, message: str):
+    for f in findings:
+        rule_id = f["rule_id"]
         existing = crud.get_active_alert(db, event.node, rule_id)
+
         if existing and (event.timestamp - existing.created_ts) < cooldown_s:
-            return
-        crud.create_alert(db, event.node, rule_id, severity, message)
+            continue
 
-    if event.latency_ms >= 200:
-        maybe_alert("latency_high", "WARN", f"High latency: {event.latency_ms:.1f} ms")
-
-    if event.packet_loss >= 0.02:
-        maybe_alert("packet_loss_high", "WARN", f"High packet loss: {event.packet_loss:.3f}")
-
-    if event.cpu_pct >= 90:
-        maybe_alert("cpu_high", "CRITICAL", f"High CPU: {event.cpu_pct:.1f}%")
-
-    return {"accepted": True, "node": event.node, "timestamp": event.timestamp}
+        crud.create_alert(
+            db,
+                node=event.node,
+                rule_id=rule_id,
+            severity=f["severity"],
+                message=f["message"],
+            )
 
 
 @app.get("/latest", response_model=TelemetryEvent)
